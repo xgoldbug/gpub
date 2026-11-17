@@ -1,5 +1,7 @@
 # GPUB — a GPU booker for homelabs
 
+**[Live demo of the dashboard →](https://xgoldbug.github.io/gpub/)** (runs entirely in your browser; no server needed)
+
 GPUB lets people, bots and scheduled jobs share a few GPUs without collisions. You book a GPU (or a group of
 machines) for a time slot; Postgres guarantees that conflicting bookings can never both exist; a small agent on each GPU
 host can run the booked job at slot start, keep the lease alive, and report telemetry.
