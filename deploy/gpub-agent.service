@@ -1,0 +1,23 @@
+# GPUB host agent — systemd USER unit template (one per GPU resource). deploy/bootstrap.sh --agent <resource>
+# fills the @PLACEHOLDERS@ and installs it to ~/.config/systemd/user/gpub-agent.service. Manual install: replace
+#   @PYTHON@      python3 (3.11+), e.g. /usr/bin/python3
+#   @AGENT@       path to agent.py, e.g. ~/.local/lib/gpub/agent.py
+#   @RESOURCE@    the resource id this host serves, e.g. spark-a-gb10
+#   @SMI_ARGS@    "--nvidia-smi /path/to/nvidia-smi" or empty (the agent also searches PATH and the WSL location)
+#   @STATE@       ~/.local/state/gpub
+# For the agent to survive logout: `sudo loginctl enable-linger <user>`.
+# KillMode=process: stopping the agent never kills a job it started; a restarted agent adopts it from its state file.
+[Unit]
+Description=GPUB host agent (@RESOURCE@; soft only: never kills a foreign process)
+After=network-online.target
+
+[Service]
+ExecStart=@PYTHON@ @AGENT@ --resource @RESOURCE@ --poll 30 @SMI_ARGS@
+Restart=always
+RestartSec=15
+KillMode=process
+StandardOutput=append:@STATE@/agent.log
+StandardError=append:@STATE@/agent.log
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,12 @@
+# secrets: never commit tokens or machine configs
+tokens/
+*.config.json
+config.json
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+# local state / logs
+*.log
+*.lock

@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<!--
+  gpubdash — a single-file, read-only dashboard for GPUB (GPU booking for a heterogeneous homelab mesh).
+  No build step, no external scripts or fonts, no network calls except to YOUR coordinator in Live mode.
+  Demo mode ships built-in sample data and scenario buttons that walk through the booking rules.
+  Visual style inspired by sparkDash by Mia's AI Lab (Apache-2.0, https://github.com/MiaAI-Lab/sparkDash).
+  No sparkDash code is included. MIT licensed with the rest of GPUB.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gpubdash — GPU bookings across a heterogeneous mesh</title>
+<style>
+  :root {
+    --base:#0a0c0f; --surface:#12151a; --elev:#181c22; --hover:#1f242b; --border:#232830; --border-strong:#343b46;
+    --text:#e9ecf0; --muted:#8b93a0; --faint:#5a6370; --accent:#e8a21c; --on-accent:#1c1404;
+    --danger:#e5484d; --warning:#e5762a; --success:#2fb27c; --info:#3d86f5; --violet:#8e6af0; --teal:#14a3c2;
+  }
+  * { box-sizing:border-box; }
+  html,body { margin:0; background:var(--base); color:var(--text);
+    font:14px/1.45 Geist,"Geist Variable",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; }
+  .mono { font-family:"Geist Mono","Geist Mono Variable",ui-monospace,SFMono-Regular,Menlo,monospace; }
+  header { display:flex; align-items:center; gap:14px; padding:12px 18px; border-bottom:1px solid var(--border);
+    background:var(--surface); position:sticky; top:0; z-index:5; flex-wrap:wrap; }
+  header h1 { font-size:16px; margin:0; letter-spacing:.02em; }
+  header h1 b { color:var(--accent); }
+  .pill { display:inline-flex; border:1px solid var(--border-strong); border-radius:8px; overflow:hidden; }
+  .pill button { background:transparent; color:var(--muted); border:0; padding:6px 12px; font:inherit; cursor:pointer; }
+  .pill button.on { background:var(--accent); color:var(--on-accent); font-weight:600; }
+  input,select { background:var(--base); color:var(--text); border:1px solid var(--border-strong); border-radius:6px;
+    padding:5px 8px; font:inherit; }
+  .grow { flex:1; }
+  .clock { color:var(--muted); }
+  main { display:grid; grid-template-columns: minmax(340px, 430px) 1fr; gap:14px; padding:14px 18px; }
+  @media (max-width: 980px) { main { grid-template-columns:1fr; } }
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:12px 14px; min-width:0; }
+  .card h2 { font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin:0 0 10px; font-weight:600; }
+  #scen { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; }
+  #scen button { background:var(--elev); color:var(--text); border:1px solid var(--border-strong); border-radius:7px;
+    padding:6px 10px; font:inherit; font-size:13px; cursor:pointer; }
+  #scen button.on { border-color:var(--accent); color:var(--accent); }
+  #caption { background:var(--elev); border-left:3px solid var(--accent); border-radius:6px; padding:9px 11px;
+    font-size:13px; color:var(--text); min-height:44px; }
+  #caption b { color:var(--accent); }
+  .legend { display:flex; flex-wrap:wrap; gap:10px 14px; font-size:12px; color:var(--muted); margin-top:10px; }
+  .legend i { display:inline-block; width:12px; height:12px; border-radius:3px; vertical-align:-2px; margin-right:5px; }
+  #topo svg, #tl svg { width:100%; display:block; }
+  .tlwrap { overflow-x:auto; }
+  #tip { position:fixed; pointer-events:none; background:#000d; border:1px solid var(--border-strong); color:var(--text);
+    font-size:12px; padding:6px 8px; border-radius:6px; display:none; max-width:340px; z-index:10; }
+  .err { color:var(--danger); font-size:13px; }
+  footer { color:var(--faint); font-size:12px; padding:4px 18px 18px; }
+  footer a { color:var(--muted); }
+  .full { grid-column:1 / -1; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  td,th { text-align:left; padding:5px 6px; border-bottom:1px solid var(--border); }
+  th { color:var(--muted); font-weight:500; font-size:12px; }
+  #builder fieldset { border:1px solid var(--border); border-radius:8px; margin:10px 0 0; padding:8px 10px; }
+  #builder legend { color:var(--muted); font-size:12px; padding:0 4px; }
+  #builder .row { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin:4px 0; }
+  #builder input, #builder select { font-size:12.5px; padding:4px 6px; }
+  #builder button, .btn { background:var(--elev); color:var(--text); border:1px solid var(--border-strong); border-radius:6px;
+    padding:4px 9px; font:inherit; font-size:12.5px; cursor:pointer; }
+  #builder button.primary { background:var(--accent); color:var(--on-accent); border-color:var(--accent); font-weight:600; }
+  #builder ul { list-style:none; padding:0; margin:6px 0 0; font-size:12.5px; }
+  #builder li { display:flex; justify-content:space-between; gap:8px; padding:3px 0; border-bottom:1px solid var(--border); }
+  #builder li button { padding:0 6px; }
+  #builder .members label { font-size:12px; color:var(--text); margin-right:8px; white-space:nowrap; }
+  #builder textarea { width:100%; min-height:150px; background:var(--base); color:var(--text); border:1px solid var(--border-strong);
+    border-radius:6px; font:12px/1.4 ui-monospace,Menlo,monospace; padding:6px; margin-top:6px; }
+  #builder .errs { color:var(--danger); font-size:12.5px; margin-top:6px; }
+  #builder .ok { color:var(--success); font-size:12.5px; margin-top:6px; }
+  .tag { font-size:11px; padding:1px 6px; border-radius:9px; border:1px solid var(--border-strong); color:var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1><b>gpub</b>dash</h1>
+  <div class="pill" id="modepill"><button data-m="demo" class="on">Demo</button><button data-m="build">Build my mesh</button><button data-m="live">Live</button></div>
+  <span id="liveopts" style="display:none">
+    <input id="base" class="mono" size="28" placeholder="coordinator URL (blank = this page's origin)">
+    <button id="connect" class="tag" style="cursor:pointer;padding:5px 10px">connect</button>
+  </span>
+  <label class="clock">window
+    <select id="win"><option value="6">6 h</option><option value="24" selected>24 h</option><option value="72">72 h</option></select>
+  </label>
+  <span class="grow"></span>
+  <span id="status" class="clock"></span>
+  <span id="clock" class="clock mono"></span>
+</header>
+<main>
+  <section class="card" id="left">
+    <h2 id="lefth">Scenarios</h2>
+    <div id="scen"></div>
+    <div id="caption"></div>
+    <div id="builder" style="display:none"></div>
+    <h2 style="margin-top:14px">Topology</h2>
+    <div id="topo"></div>
+    <div class="legend">
+      <span><i style="background:var(--success)"></i>free</span>
+      <span><i style="background:var(--info)"></i>booked soon</span>
+      <span><i style="background:var(--accent)"></i>active exclusive</span>
+      <span><i style="background:var(--violet)"></i>active shared</span>
+      <span><i style="background:var(--danger)"></i>lease lost / refused</span>
+    </div>
+  </section>
+  <section class="card" id="right">
+    <h2>Timeline</h2>
+    <div class="tlwrap" id="tl"></div>
+    <div class="legend">
+      <span><i style="background:var(--accent)"></i>exclusive</span>
+      <span><i style="background:var(--violet)"></i>shared (height = VRAM share)</span>
+      <span><i style="border:1px dashed var(--muted)"></i>booked, not started</span>
+      <span><i style="background:transparent;border:2px solid var(--teal)"></i>group booking (duo / quad) bracket</span>
+      <span><i style="background:repeating-linear-gradient(45deg,var(--danger) 0 3px,transparent 3px 6px)"></i>request refused / waiting</span>
+    </div>
+  </section>
+  <section class="card full">
+    <h2>Resources</h2>
+    <div id="table"></div>
+  </section>
+</main>
+<footer>
+  gpubdash is read-only. Live mode calls <span class="mono">GET /resources</span>, <span class="mono">/bookings</span> and
+  <span class="mono">/status</span> on your coordinator. Serve it from the coordinator (<span class="mono">/dash</span>) to avoid
+  cross-origin errors. Visual style inspired by <a href="https://github.com/MiaAI-Lab/sparkDash">sparkDash</a> by Mia's AI Lab.
+</footer>
+<div id="tip"></div>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const H = 3600e3;
+const C = { free:"var(--success)", booked:"var(--info)", excl:"var(--accent)", shared:"var(--violet)", bad:"var(--danger)",
+            group:"var(--teal)", muted:"var(--muted)", border:"var(--border-strong)" };
+
+// ------------------------------------------------------------------ demo mesh (generic names only)
+const DEMO_RESOURCES = [
+  { resource_id:"rtxbox-5090",  host_machine:"rtxbox",  model:"RTX 5090 (32 GB VRAM)", capacity_gb:32, kind:"gpu" },
+  { resource_id:"spark-a-gb10", host_machine:"spark-a", model:"GB10 (128 GB unified)", capacity_gb:110, kind:"gb10" },
+  { resource_id:"spark-b-gx10", host_machine:"spark-b", model:"GB10 (128 GB unified)", capacity_gb:110, kind:"gb10" },
+  { resource_id:"spark-c-gb10", host_machine:"spark-c", model:"GB10 (128 GB unified)", capacity_gb:110, kind:"gb10" },
+  { resource_id:"spark-d-gx10", host_machine:"spark-d", model:"GB10 (128 GB unified)", capacity_gb:110, kind:"gb10" },
+  { resource_id:"mac-a-gpu",    host_machine:"mac-a",   model:"Apple Silicon (256 GB unified)", capacity_gb:200, kind:"mac" },
+  { resource_id:"mac-b-gpu",    host_machine:"mac-b",   model:"Apple Silicon (128 GB unified)", capacity_gb:100, kind:"mac" },
+  { resource_id:"gb10-duo",   host_machine:"spark-a", model:"DUO over QSFP", capacity_gb:220, members:["spark-a-gb10","spark-b-gx10"], link:"QSFP" },
+  { resource_id:"gb10-duo-2", host_machine:"spark-c", model:"DUO over QSFP", capacity_gb:220, members:["spark-c-gb10","spark-d-gx10"], link:"QSFP" },
+  { resource_id:"gb10-quad",  host_machine:"spark-a", model:"QUAD on the QSFP ring", capacity_gb:440,
+    members:["spark-a-gb10","spark-b-gx10","spark-d-gx10","spark-c-gb10"], link:"QSFP ring" },
+  { resource_id:"mac-duo",    host_machine:"mac-a",   model:"PAIR over Thunderbolt", capacity_gb:300, members:["mac-a-gpu","mac-b-gpu"], link:"Thunderbolt" },
+];
+const HEADNODE = "headnode";
+
+let nextId = 100;
+function bk(resource_id, startH, durH, o = {}) {
+  const now = Date.now();
+  return Object.assign({ id: nextId++, resource_id, owner_machine: o.owner || "headnode", mode: o.mode || "exclusive",
+    vram_budget_gb: o.vram ?? null, priority: o.priority || "interactive", purpose: o.purpose || "",
+    state: startH <= 0 && startH + durH > 0 ? "active" : "booked",
+    start: new Date(now + startH * H).toISOString(), end: new Date(now + (startH + durH) * H).toISOString() }, o.extra || {});
+}
+// a group booking = one row on the group resource + one exclusive member row per member, linked by pair_id
+function group(gid, startH, durH, o = {}) {
+  const g = DEMO_RESOURCES.find(r => r.resource_id === gid);
+  const head = bk(gid, startH, durH, o);
+  return [head, ...g.members.map(m => bk(m, startH, durH, Object.assign({}, o, { extra: { pair_id: head.id } })))];
+}
+
+const SCENARIOS = [
+  { key:"day", label:"A normal day",
+    caption:"Every box is a <b>resource</b>, and a duo, quad or Mac pair is a <b>group resource</b> whose bookings hold all of its members at once. Here duo 1 runs a long inference job, duo 2 is booked for tonight, the RTX box is shared by two small jobs, and the Mac pair is idle.",
+    build: () => [
+      ...group("gb10-duo", -2, 6, { purpose:"inference server (2-box model)", owner:"spark-a" }),
+      ...group("gb10-duo-2", 5, 4, { purpose:"nightly fine-tune", owner:"spark-c", priority:"background" }),
+      bk("rtxbox-5090", -1, 3, { mode:"shared", vram:12, purpose:"image renders", owner:"rtxbox" }),
+      bk("rtxbox-5090", -0.5, 2, { mode:"shared", vram:16, purpose:"speech-to-text batch", owner:"workstation" }),
+      bk("mac-a-gpu", 8, 2, { purpose:"local chat model", owner:"mac-a" }),
+      bk("spark-a-gb10", 10, 3, { purpose:"evaluation sweep", priority:"background" }),
+    ], ghosts: [] },
+  { key:"quadwait", label:"Quad waits for both duos",
+    caption:"A <b>quad</b> needs all four GB10s. It never preempts: an <b>earliest-fit</b> request (<span class=mono>gpub book --gpu gb10-quad --asap</span>) is placed after the busiest member frees. Duo 1 ends in 4 h and duo 2 in 6 h, so the quad lands at +6 h.",
+    build: () => [
+      ...group("gb10-duo", -2, 6, { purpose:"inference server", owner:"spark-a" }),
+      ...group("gb10-duo-2", -1, 7, { purpose:"fine-tune run", owner:"spark-c" }),
+      ...group("gb10-quad", 6, 5, { purpose:"4-box large model (earliest fit)", owner:"spark-a" }),
+    ], ghosts: [] },
+  { key:"refused", label:"Quad refused, no partial hold",
+    caption:"Ask for the quad <b>now</b> while duo 1 is active and Postgres refuses the whole group with <span class=mono>409</span>: the member rows are inserted in one transaction, the exclusion constraint on spark-a fails, and <b>nothing</b> is left half-held on spark-c or spark-d.",
+    build: () => [ ...group("gb10-duo", -1, 4, { purpose:"inference server", owner:"spark-a" }) ],
+    ghosts: [ { group:"gb10-quad", startH:0, durH:3, note:"409: spark-a-gb10 slot taken — no rows created" } ] },
+  { key:"shared", label:"Shared VRAM adds up",
+    caption:"<b>Shared</b> bookings declare a VRAM budget and may overlap while the sum fits the resource (32 GB on the RTX box). 12 + 16 GB fits; a third request for 8 GB would make 36 GB and is refused, and so is any <b>exclusive</b> booking over a shared one.",
+    build: () => [
+      bk("rtxbox-5090", -1, 4, { mode:"shared", vram:12, purpose:"image renders", owner:"rtxbox" }),
+      bk("rtxbox-5090", 0.5, 3, { mode:"shared", vram:16, purpose:"speech-to-text", owner:"workstation" }),
+    ],
+    ghosts: [ { resource:"rtxbox-5090", startH:1, durH:2, note:"refused: 12 + 16 + 8 = 36 GB > 32 GB" } ] },
+  { key:"lease", label:"Lease expires, slot frees",
+    caption:"Interactive bookings hold a <b>lease</b>: the client heartbeats. When the heartbeats stop (laptop closed, process killed) the lease expires after its grace window, the booking ends as <span class=mono>heartbeat_lost</span>, the slot is freed and everyone is signalled.",
+    build: () => {
+      const b = bk("mac-a-gpu", -1, 4, { purpose:"interactive notebook", owner:"mac-a" });
+      b.lease_lost = true;
+      return [ b, ...group("gb10-duo", 2, 3, { purpose:"queued job" }) ];
+    }, ghosts: [] },
+];
+
+// ------------------------------------------------------------------ state
+let MODE = "demo", SCEN = SCENARIOS[0], DATA = null, LIVE_TIMER = null;
+function demoData() {
+  nextId = 100;
+  return { resources: DEMO_RESOURCES, bookings: SCEN.build(), status: null, ghosts: SCEN.ghosts, headnode: HEADNODE };
+}
+
+async function liveData() {
+  const base = ($("base").value || location.origin).replace(/\/$/, "");
+  const win = +$("win").value;
+  const from = new Date(Date.now() - 2 * H).toISOString(), to = new Date(Date.now() + win * H).toISOString();
+  const get = p => fetch(base + p, { cache: "no-store" }).then(r => { if (!r.ok) throw new Error(p + " " + r.status); return r.json(); });
+  const [resources, bookings, status] = await Promise.all([
+    get("/resources"), get(`/bookings?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&limit=500`), get("/status")]);
+  for (const r of resources) r.kind = r.members ? "group" : /mac|apple/i.test(r.model || "") ? "mac" : /gb10|spark|gx10/i.test(r.model || "") ? "gb10" : "gpu";
+  return { resources, bookings: bookings.filter(b => b.state !== "template"), status, ghosts: [], headnode: "coordinator" };
+}
+
+// ------------------------------------------------------------------ helpers
+const singles = d => d.resources.filter(r => !r.members);
+const groups = d => d.resources.filter(r => r.members && r.members.length);
+function nowState(d, rid) {
+  const now = Date.now(); const bs = d.bookings.filter(b => b.resource_id === rid);
+  const act = bs.filter(b => new Date(b.start) <= now && new Date(b.end) > now);
+  if (act.some(b => b.lease_lost)) return "bad";
+  if (d.status) {
+    const s = d.status.resources.find(x => x.resource.resource_id === rid);
+    if (s && s.agent && s.agent.stale) return "bad";
+  }
+  if (act.some(b => b.mode === "exclusive")) return "excl";
+  if (act.length) return "shared";
+  if (bs.some(b => new Date(b.start) > now && new Date(b.start) - now < 2 * H)) return "booked";
+  return "free";
+}
+function tip(ev, html) { const t = $("tip"); t.innerHTML = html; t.style.display = "block";
+  t.style.left = Math.min(ev.clientX + 14, innerWidth - 360) + "px"; t.style.top = (ev.clientY + 12) + "px"; }
+function untip() { $("tip").style.display = "none"; }
+const fmtT = iso => new Date(iso).toLocaleString([], { weekday:"short", hour:"2-digit", minute:"2-digit" });
+
+// ------------------------------------------------------------------ topology
+function drawTopo(d) {
+  const W = 440, sg = singles(d), gs = groups(d);
+  // place every single resource: GB10 ring members on a square, pair members side by side, the rest in a row
+  const pos = {}; const ring = gs.find(g => g.members.length >= 3);
+  let y0 = 80;
+  const lines = [];
+  if (ring) {
+    const m = ring.members, cx = W / 2, cy = y0 + 95, r = 78;
+    m.forEach((rid, i) => { const a = -Math.PI * 3 / 4 + i * 2 * Math.PI / m.length; pos[rid] = [cx + r * Math.cos(a) * 1.25, cy + r * Math.sin(a)]; });
+    m.forEach((rid, i) => lines.push({ a: rid, b: m[(i + 1) % m.length], label: ring.link || "", g: ring.resource_id, kind: "ring" }));
+    y0 = cy + r + 60;
+  }
+  const pairs = gs.filter(g => g.members.length === 2 && g.members.every(x => !pos[x]));
+  pairs.forEach((p, k) => {                       // two pairs per row
+    const x0 = 62 + (k % 2) * 214, y = y0 + Math.floor(k / 2) * 92;
+    p.members.forEach((rid, i) => { pos[rid] = [x0 + i * 102, y]; });
+  });
+  if (pairs.length) y0 += Math.ceil(pairs.length / 2) * 92;
+  let k = 0;
+  for (const r of sg) if (!pos[r.resource_id]) { pos[r.resource_id] = [62 + (k % 4) * 105, y0 + Math.floor(k / 4) * 70]; k++; }
+  const Hh = Math.max(...Object.values(pos).map(p => p[1])) + 50;
+  // group duos inside the ring are drawn as thicker inner links
+  for (const g of gs) if (g !== ring) for (let i = 0; i < g.members.length - 1; i++)
+    lines.push({ a: g.members[i], b: g.members[i + 1], label: g.link || "", g: g.resource_id, kind: "pair" });
+  const head = [W / 2, 26];
+  const activeGroups = new Set(d.bookings.filter(b => b.pair_id == null && d.resources.find(r => r.resource_id === b.resource_id && r.members)
+      && new Date(b.start) <= Date.now() && new Date(b.end) > Date.now()).map(b => b.resource_id));
+  let s = `<svg viewBox="0 0 ${W} ${Hh}" role="img" aria-label="mesh topology">`;
+  // headnode spokes (LAN / VPN)
+  for (const r of sg) { const [x, y] = pos[r.resource_id];
+    s += `<line x1="${head[0]}" y1="${head[1] + 12}" x2="${x}" y2="${y - 20}" stroke="${C.border}" stroke-dasharray="2 4"/>`; }
+  for (const L of lines) {
+    const [x1, y1] = pos[L.a] || [0, 0], [x2, y2] = pos[L.b] || [0, 0]; const on = activeGroups.has(L.g);
+    const col = on ? C.group : (L.kind === "ring" ? "#3a4250" : "#2d3440");
+    const dup = L.kind === "ring" ? 2 : 1;
+    for (let k = 0; k < dup; k++) { const o = (k - (dup - 1) / 2) * 4; const dx = y2 - y1, dy = x1 - x2, n = Math.hypot(dx, dy) || 1;
+      s += `<line x1="${x1 + o * dx / n}" y1="${y1 + o * dy / n}" x2="${x2 + o * dx / n}" y2="${y2 + o * dy / n}" stroke="${col}" stroke-width="${on ? 2.5 : 2}"/>`; }
+    if (L.label && L.kind === "pair" && !(ring && ring.members.includes(L.a))) s += `<text x="${(x1 + x2) / 2}" y="${Math.max(y1, y2) + 33}" fill="${on ? C.group : C.muted}" font-size="10" text-anchor="middle">${esc(L.label)}</text>`;
+  }
+  if (ring) { const ys = ring.members.map(m => pos[m][1]); const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+    s += `<text x="${W / 2}" y="${cy + 4}" fill="${C.muted}" font-size="10" text-anchor="middle">${esc(ring.link || "ring")} · ${ring.members.length} boxes</text>`; }
+  s += `<g><rect x="${head[0] - 52}" y="${head[1] - 13}" width="104" height="26" rx="6" fill="var(--elev)" stroke="${C.border}"/>
+        <text x="${head[0]}" y="${head[1] + 4}" fill="var(--text)" font-size="12" text-anchor="middle">${esc(d.headnode)} · coordinator</text></g>`;
+  const hostCount = {}; for (const r of sg) hostCount[r.host_machine] = (hostCount[r.host_machine] || 0) + 1;
+  for (const r of sg) { const [x, y] = pos[r.resource_id]; const st = nowState(d, r.resource_id);
+    const nm = hostCount[r.host_machine] > 1 ? r.resource_id : r.host_machine;
+    const icon = r.kind === "mac" ? "" : r.kind === "gb10" ? "GB10" : "GPU";
+    s += `<g class="node" data-rid="${esc(r.resource_id)}" style="cursor:default">
+      <rect x="${x - 44}" y="${y - 20}" width="88" height="40" rx="8" fill="var(--elev)" stroke="${C[st]}" stroke-width="2"/>
+      <circle cx="${x + 34}" cy="${y - 10}" r="4" fill="${C[st]}"/>
+      <text x="${x - 4}" y="${y - 3}" fill="var(--text)" font-size="${nm.length > 10 ? 9.5 : 11.5}" text-anchor="middle">${esc(nm.length > 16 ? nm.slice(0, 15) + "…" : nm)}</text>
+      <text x="${x}" y="${y + 12}" fill="${C.muted}" font-size="9.5" text-anchor="middle">${esc(icon || "Mac")} · ${r.capacity_gb} GB</text></g>`; }
+  s += "</svg>";
+  $("topo").innerHTML = s;
+  $("topo").querySelectorAll(".node").forEach(n => {
+    const r = d.resources.find(x => x.resource_id === n.dataset.rid);
+    n.onmousemove = ev => tip(ev, `<b>${esc(r.resource_id)}</b><br>${esc(r.model || "")}<br>budget ${r.capacity_gb} GB · now: ${nowState(d, r.resource_id)}`);
+    n.onmouseleave = untip;
+  });
+}
+
+// ------------------------------------------------------------------ timeline
+function drawTimeline(d) {
+  const win = +$("win").value, t0 = Date.now() - 2 * H, t1 = Date.now() + win * H;
+  const rows = singles(d), LW = 128, W = Math.max(720, $("tl").clientWidth || 720), RH = 34, top = 26;
+  const X = t => LW + (Math.min(Math.max(t, t0), t1) - t0) / (t1 - t0) * (W - LW - 10);
+  const rowY = {}; rows.forEach((r, i) => rowY[r.resource_id] = top + i * RH);
+  const Hh = top + rows.length * RH + 8;
+  let s = `<svg viewBox="0 0 ${W} ${Hh}" width="${W}" height="${Hh}">`;
+  // hour grid
+  const step = win <= 6 ? 1 : win <= 24 ? 3 : 12;
+  for (let t = Math.ceil(t0 / (step * H)) * step * H; t < t1; t += step * H) {
+    const x = X(t); s += `<line x1="${x}" y1="${top - 4}" x2="${x}" y2="${Hh}" stroke="var(--border)"/>
+      <text x="${x + 3}" y="${top - 10}" fill="${C.muted}" font-size="10">${new Date(t).toLocaleString([], win > 24 ? { weekday:"short", hour:"2-digit" } : { hour:"2-digit", minute:"2-digit" })}</text>`; }
+  rows.forEach((r, i) => { const y = rowY[r.resource_id];
+    s += `<rect x="0" y="${y}" width="${W}" height="${RH}" fill="${i % 2 ? "transparent" : "#ffffff05"}"/>
+      <text x="8" y="${y + 15}" fill="var(--text)" font-size="12">${esc(r.resource_id)}</text>
+      <text x="8" y="${y + 28}" fill="${C.muted}" font-size="9.5">${esc(r.capacity_gb)} GB · ${esc(r.host_machine)}</text>`; });
+  // bars: members and ordinary bookings live on single rows; shared bookings stack by VRAM share
+  const byRow = {};
+  for (const b of d.bookings) { if (!(b.resource_id in rowY)) continue; (byRow[b.resource_id] ||= []).push(b); }
+  for (const [rid, bs] of Object.entries(byRow)) {
+    const cap = d.resources.find(r => r.resource_id === rid).capacity_gb || 1, y = rowY[rid];
+    let stackTop = {};
+    for (const b of bs.sort((a, c) => new Date(a.start) - new Date(c.start))) {
+      const x1 = X(+new Date(b.start)), x2 = X(+new Date(b.end)); if (x2 <= LW + 1) continue;
+      const active = b.state === "active" || (new Date(b.start) <= Date.now() && new Date(b.end) > Date.now());
+      let yy = y + 4, hh = RH - 8, col = b.mode === "shared" ? C.shared : C.excl;
+      if (b.mode === "shared" && b.vram_budget_gb) { hh = Math.max(4, (RH - 8) * b.vram_budget_gb / cap);
+        const k = Math.round(x1); stackTop[k] = stackTop[k] || 0;
+        const off = bs.filter(o => o !== b && o.mode === "shared" && new Date(o.start) < new Date(b.start) && new Date(o.end) > new Date(b.start))
+          .reduce((a, o) => a + (RH - 8) * (o.vram_budget_gb || 0) / cap, 0);
+        yy = y + 4 + (RH - 8) - off - hh; }
+      if (b.lease_lost) col = C.bad;
+      const fill = active ? col : "transparent", dash = active ? "" : `stroke-dasharray="4 3"`;
+      const grp = b.pair_id != null;
+      s += `<rect class="bar" data-id="${b.id}" x="${x1}" y="${yy}" width="${Math.max(3, x2 - x1)}" height="${hh}" rx="4"
+        fill="${fill}" fill-opacity="${grp ? 0.55 : 0.85}" stroke="${col}" ${dash}/>`;
+      if (x2 - x1 > 70 && !grp && hh >= 14) s += `<text x="${x1 + 6}" y="${yy + Math.min(hh, 18) - 5}" fill="${active ? "var(--on-accent)" : "var(--text)"}" font-size="10.5" pointer-events="none">${esc((b.purpose || b.owner_machine || "").slice(0, Math.floor((x2 - x1) / 6.5)))}</text>`;
+    }
+  }
+  // group brackets: one per group booking, spanning its member rows
+  const heads = d.bookings.filter(b => b.pair_id == null && d.resources.find(r => r.resource_id === b.resource_id && r.members));
+  for (const g of heads) {
+    const res = d.resources.find(r => r.resource_id === g.resource_id);
+    const ys = res.members.map(m => rowY[m]).filter(v => v != null); if (!ys.length) continue;
+    const x1 = X(+new Date(g.start)), x2 = X(+new Date(g.end)); if (x2 <= LW + 1) continue;
+    const yA = Math.min(...ys) + 1, yB = Math.max(...ys) + RH - 1;
+    s += `<rect class="bar" data-id="${g.id}" x="${x1 - 2}" y="${yA}" width="${Math.max(5, x2 - x1 + 4)}" height="${yB - yA}" rx="6"
+      fill="none" stroke="${C.group}" stroke-width="2"/>
+      <rect x="${x1 + 2}" y="${yA - 9}" width="${Math.min(260, 12 + 6.2 * (res.resource_id.length + 3 + Math.min(40, (g.purpose || "").length)))}" height="16" rx="4" fill="var(--surface)" stroke="${C.group}" pointer-events="none"/>
+      <text x="${x1 + 8}" y="${yA + 3}" fill="${C.group}" font-size="10.5" font-weight="600" pointer-events="none">${esc(res.resource_id)} · ${esc((g.purpose || "").slice(0, 40))}</text>`;
+  }
+  // ghost requests (demo): refused or waiting
+  for (const gh of d.ghosts || []) {
+    const ids = gh.group ? d.resources.find(r => r.resource_id === gh.group).members : [gh.resource];
+    const ys = ids.map(m => rowY[m]); const x1 = X(Date.now() + gh.startH * H), x2 = X(Date.now() + (gh.startH + gh.durH) * H);
+    const yA = Math.min(...ys) + 2, yB = Math.max(...ys) + RH - 2;
+    s += `<defs><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="3" height="6" fill="var(--danger)" fill-opacity=".45"/></pattern></defs>
+      <rect x="${x1}" y="${yA}" width="${x2 - x1}" height="${yB - yA}" rx="6" fill="url(#hatch)" stroke="var(--danger)" stroke-dasharray="5 3"/>
+      <text x="${x1 + 6}" y="${yB - 6}" fill="var(--danger)" font-size="10.5" font-weight="600">${esc(gh.note)}</text>`;
+  }
+  const xn = X(Date.now());
+  s += `<line x1="${xn}" y1="${top - 6}" x2="${xn}" y2="${Hh}" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="${xn + 3}" y="${Hh - 3}" fill="var(--accent)" font-size="10">now</text></svg>`;
+  $("tl").innerHTML = s;
+  $("tl").querySelectorAll(".bar").forEach(el => {
+    const b = d.bookings.find(x => x.id == el.dataset.id); if (!b) return;
+    el.onmousemove = ev => tip(ev, `<b>#${b.id} ${esc(b.resource_id)}</b>${b.pair_id != null ? ` <span class=tag>member of #${b.pair_id}</span>` : ""}<br>
+      ${esc(b.purpose || "")}<br>${esc(b.mode)}${b.vram_budget_gb ? " · " + b.vram_budget_gb + " GB" : ""} · ${esc(b.priority)} · owner ${esc(b.owner_machine)}<br>
+      ${fmtT(b.start)} → ${fmtT(b.end)}${b.lease_lost ? "<br><span style='color:var(--danger)'>lease lost: heartbeats stopped</span>" : ""}`);
+    el.onmouseleave = untip;
+  });
+}
+
+// ------------------------------------------------------------------ table
+function drawTable(d) {
+  const now = Date.now();
+  let h = `<table><tr><th>resource</th><th>kind</th><th>budget</th><th>now</th><th>next booking</th><th>agent</th></tr>`;
+  for (const r of d.resources) {
+    const st = r.members ? (d.bookings.some(b => b.resource_id === r.resource_id && b.pair_id == null && new Date(b.start) <= now && new Date(b.end) > now) ? "excl" : "free") : nowState(d, r.resource_id);
+    const nx = d.bookings.filter(b => b.resource_id === r.resource_id && new Date(b.start) > now).sort((a, b) => new Date(a.start) - new Date(b.start))[0];
+    let agent = "—";
+    if (d.status) { const s = d.status.resources.find(x => x.resource.resource_id === r.resource_id);
+      if (s && s.agent) agent = (s.agent.stale ? "<span style='color:var(--danger)'>stale</span>" : "ok") + ` · ${s.agent.age_s}s`; }
+    h += `<tr><td class="mono">${esc(r.resource_id)}</td>
+      <td>${r.members ? `<span class=tag>group: ${r.members.map(esc).join(" + ")}</span>` : esc(r.model || "")}</td>
+      <td>${esc(r.capacity_gb)} GB</td>
+      <td><span style="color:${C[st]}">●</span> ${st === "excl" ? "held" : st}</td>
+      <td>${nx ? `${fmtT(nx.start)} · ${esc(nx.purpose || nx.owner_machine)}` : "—"}</td><td>${agent}</td></tr>`;
+  }
+  $("table").innerHTML = h + "</table>";
+}
+
+
+// ------------------------------------------------------------------ builder: describe YOUR mesh (kept in this browser only)
+/*PRESETS-BEGIN*/const PRESETS = {"_comment": "Hardware presets for describing a mesh. memory_gb = what the device has; budget_gb = what GPUB lets bookings use (leave headroom for the OS/driver). Unified-memory machines (GB10, Apple Silicon) share RAM with the OS, so their budget is a fraction of total. Edit freely; budgets are policy, not measurements.", "presets": [{"id": "rtx-3060-12", "label": "NVIDIA RTX 3060 (12 GB)", "memory": "vram", "memory_gb": 12, "budget_gb": 11, "telemetry": "nvidia-smi"}, {"id": "rtx-3090", "label": "NVIDIA RTX 3090 (24 GB)", "memory": "vram", "memory_gb": 24, "budget_gb": 22, "telemetry": "nvidia-smi"}, {"id": "rtx-4090", "label": "NVIDIA RTX 4090 (24 GB)", "memory": "vram", "memory_gb": 24, "budget_gb": 22, "telemetry": "nvidia-smi"}, {"id": "rtx-5090", "label": "NVIDIA RTX 5090 (32 GB)", "memory": "vram", "memory_gb": 32, "budget_gb": 30, "telemetry": "nvidia-smi"}, {"id": "rtx-a6000", "label": "NVIDIA RTX A6000 / 6000 Ada (48 GB)", "memory": "vram", "memory_gb": 48, "budget_gb": 45, "telemetry": "nvidia-smi"}, {"id": "rtx-pro-6000", "label": "NVIDIA RTX PRO 6000 Blackwell (96 GB)", "memory": "vram", "memory_gb": 96, "budget_gb": 90, "telemetry": "nvidia-smi"}, {"id": "gb10", "label": "NVIDIA GB10 / DGX Spark-class (128 GB unified)", "memory": "unified", "memory_gb": 128, "budget_gb": 110, "telemetry": "nvidia-smi (memory reads N/A on unified memory)"}, {"id": "apple-silicon", "label": "Apple Silicon Mac (unified; enter your RAM)", "memory": "unified", "memory_gb": null, "budget_fraction": 0.75, "telemetry": "none built in (agent still runs jobs and heartbeats)", "name": "Apple Silicon Mac"}, {"id": "custom", "label": "Other GPU / accelerator (enter numbers)", "memory": "vram", "memory_gb": null, "budget_fraction": 0.9, "telemetry": "depends; the agent only reads nvidia-smi", "name": "GPU / accelerator"}], "links": [{"id": "qsfp", "label": "QSFP / ConnectX (e.g. GB10 to GB10, 200G)"}, {"id": "thunderbolt", "label": "Thunderbolt (e.g. Mac to Mac)"}, {"id": "nvlink", "label": "NVLink bridge (two GPUs in one box)"}, {"id": "ethernet", "label": "Ethernet (10/25/100G)"}, {"id": "infiniband", "label": "InfiniBand"}, {"id": "none", "label": "No special link (booked together only)"}]};/*PRESETS-END*/
+const EXAMPLE_MESH = {"mesh": "example-homelab", "machines": [{"name": "headnode", "os": "linux", "ip": "192.0.2.10", "role": "runs the coordinator"}, {"name": "rtxbox", "os": "linux-wsl2", "ip": "192.0.2.11"}, {"name": "oldrig", "os": "linux", "ip": "192.0.2.12"}, {"name": "spark-a", "os": "linux", "ip": "192.0.2.21"}, {"name": "spark-b", "os": "linux", "ip": "192.0.2.22"}, {"name": "studio", "os": "macos", "ip": "192.0.2.31"}, {"name": "macbook", "os": "macos", "ip": "192.0.2.32"}], "resources": [{"id": "rtxbox-5090", "machine": "rtxbox", "preset": "rtx-5090"}, {"id": "oldrig-3090-0", "machine": "oldrig", "preset": "rtx-3090"}, {"id": "oldrig-3090-1", "machine": "oldrig", "preset": "rtx-3090"}, {"id": "spark-a-gb10", "machine": "spark-a", "preset": "gb10"}, {"id": "spark-b-gb10", "machine": "spark-b", "preset": "gb10"}, {"id": "studio-gpu", "machine": "studio", "preset": "apple-silicon", "memory_gb": 192}, {"id": "macbook-gpu", "machine": "macbook", "preset": "apple-silicon", "memory_gb": 64, "budget_gb": 44, "notes": "laptop: only when docked and on mains"}], "groups": [{"id": "gb10-duo", "members": ["spark-a-gb10", "spark-b-gb10"], "link": "qsfp", "driver": "spark-a-gb10"}, {"id": "mac-pair", "members": ["studio-gpu", "macbook-gpu"], "link": "thunderbolt", "driver": "studio-gpu"}, {"id": "oldrig-nvlink", "members": ["oldrig-3090-0", "oldrig-3090-1"], "link": "nvlink"}]};
+const NAME_RE = /^[a-z0-9][a-z0-9-]{0,62}$/;
+const PR = Object.fromEntries(PRESETS.presets.map(p => [p.id, p])), LK = Object.fromEntries(PRESETS.links.map(l => [l.id, l]));
+let MESH = (() => { try { return JSON.parse(localStorage.getItem("gpubdash.mesh")) || null; } catch { return null; } })()
+           || { mesh: "my-homelab", machines: [], resources: [], groups: [] };
+const saveMesh = () => { try { localStorage.setItem("gpubdash.mesh", JSON.stringify(MESH)); } catch {} };
+
+// same rules as tools/mesh_to_sql.py (keep in step)
+function resolveMesh(mesh) {
+  const errs = [], machines = mesh.machines || [], names = machines.map(m => m.name);
+  for (const m of machines) if (!NAME_RE.test(String(m.name || ""))) errs.push(`machine name '${m.name}': use lowercase letters, digits and dashes`);
+  for (const n of new Set(names.filter((n, i) => names.indexOf(n) !== i))) errs.push(`machine '${n}' is listed twice`);
+  const res = [];
+  for (const r of mesh.resources || []) {
+    if (!NAME_RE.test(String(r.id || ""))) { errs.push(`resource id '${r.id}': use lowercase letters, digits and dashes`); continue; }
+    if (!names.includes(r.machine)) errs.push(`resource ${r.id}: machine '${r.machine}' is not in machines`);
+    const pr = PR[r.preset || "custom"]; if (!pr) { errs.push(`resource ${r.id}: unknown preset '${r.preset}'`); continue; }
+    const mem = r.memory_gb ?? pr.memory_gb;
+    if (mem == null || mem === "") { errs.push(`resource ${r.id}: preset ${pr.id} needs memory_gb`); continue; }
+    let budget = r.budget_gb ?? (r.memory_gb == null ? pr.budget_gb : null);
+    if (budget == null || budget === "") budget = Math.round(+mem * (pr.budget_fraction ?? 0.9));
+    if (!(+budget > 0 && +budget <= +mem)) errs.push(`resource ${r.id}: budget_gb ${budget} must be > 0 and <= memory_gb ${mem}`);
+    const model = r.model || (pr.memory_gb != null ? pr.label : `${pr.name || pr.label} (${mem} GB${pr.memory === "unified" ? " unified" : ""})`);
+    res.push({ id: r.id, machine: r.machine, model, memory_gb: +mem, budget_gb: +budget, lockfile: r.lockfile || null,
+               notes: r.notes || null, kind: pr.id === "gb10" ? "gb10" : pr.id === "apple-silicon" ? "mac" : "gpu" });
+  }
+  const rids = res.map(r => r.id);
+  for (const n of new Set(rids.filter((n, i) => rids.indexOf(n) !== i))) errs.push(`resource '${n}' is listed twice`);
+  const groups = [];
+  for (const g of mesh.groups || []) {
+    const mem = g.members || [];
+    if (!NAME_RE.test(String(g.id || ""))) { errs.push(`group id '${g.id}': use lowercase letters, digits and dashes`); continue; }
+    if (rids.includes(g.id)) errs.push(`group ${g.id}: id clashes with a resource id`);
+    if (mem.length < 2 || new Set(mem).size !== mem.length) errs.push(`group ${g.id}: needs 2+ distinct members`);
+    for (const m of mem) if (!rids.includes(m)) errs.push(`group ${g.id}: member '${m}' is not a resource`);
+    const link = g.link || "none"; if (!LK[link]) errs.push(`group ${g.id}: unknown link '${link}'`);
+    const driver = g.driver || mem[0]; if (!mem.includes(driver)) errs.push(`group ${g.id}: driver '${driver}' must be one of its members`);
+    const by = Object.fromEntries(res.map(r => [r.id, r]));
+    groups.push({ id: g.id, members: mem, link, driver, machine: by[driver]?.machine ?? null,
+                  budget_gb: mem.reduce((a, m) => a + (by[m]?.budget_gb || 0), 0),
+                  label: `${mem.length}-member group over ${LK[link]?.label || link}` });
+  }
+  const gids = groups.map(g => g.id);
+  for (const n of new Set(gids.filter((n, i) => gids.indexOf(n) !== i))) errs.push(`group '${n}' is listed twice`);
+  return { machines, res, groups, errs };
+}
+const sqlq = v => v == null ? "NULL" : "'" + String(v).replace(/'/g, "''") + "'";
+function setupText(R) {
+  const L = ["# 1. register each machine (prints its token ONCE; put it in that machine's ~/.config/gpub/config.json)"];
+  for (const m of R.machines) L.push(`python gpub/coordinator.py --db gpub register ${m.name}${m.ip ? " --ip " + m.ip : ""}${m.os ? " --os " + m.os : ""}`);
+  L.push("", "# 2. load this SQL:  psql gpub -f mesh.sql", "BEGIN;");
+  for (const r of R.res) L.push(`INSERT INTO resources (resource_id, host_machine, model, capacity_gb, gpu_lock_path, notes) VALUES (${sqlq(r.id)}, ${sqlq(r.machine)}, ${sqlq(r.model)}, ${r.budget_gb}, ${sqlq(r.lockfile)}, ${sqlq(r.notes || "memory " + r.memory_gb + " GB")}) ON CONFLICT (resource_id) DO NOTHING;`);
+  for (const g of R.groups) L.push(`INSERT INTO resources (resource_id, host_machine, model, capacity_gb, gpu_lock_path, members, notes) VALUES (${sqlq(g.id)}, ${sqlq(g.machine)}, ${sqlq(g.label)}, ${g.budget_gb}, NULL, ARRAY[${g.members.map(sqlq).join(",")}], ${sqlq("driver " + g.driver + "; booked as one unit, never preempts")}) ON CONFLICT (resource_id) DO NOTHING;`);
+  L.push("COMMIT;");
+  return L.join("\n");
+}
+function meshToData() {
+  const R = resolveMesh(MESH);
+  const resources = [...R.res.map(r => ({ resource_id: r.id, host_machine: r.machine, model: r.model, capacity_gb: r.budget_gb, kind: r.kind })),
+                     ...R.groups.filter(g => g.members.every(m => R.res.some(r => r.id === m)))
+                       .map(g => ({ resource_id: g.id, host_machine: g.machine, model: g.label, capacity_gb: g.budget_gb, members: g.members, link: LK[g.link]?.label.split(" (")[0] || g.link }))];
+  const head = (MESH.machines.find(m => /coord/i.test(m.role || "")) || MESH.machines[0] || { name: "headnode" }).name;
+  return { R, data: { resources, bookings: [], status: null, ghosts: [], headnode: head } };
+}
+function download(name, text) { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
+  a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); }
+const opt = (v, l, sel) => `<option value="${esc(v)}"${sel ? " selected" : ""}>${esc(l)}</option>`;
+function drawBuilder() {
+  const { R, data } = meshToData();
+  const machineOpts = MESH.machines.map(m => opt(m.name, m.name)).join("");
+  const presetOpts = PRESETS.presets.map(p => opt(p.id, p.label)).join("");
+  const linkOpts = PRESETS.links.map(l => opt(l.id, l.label)).join("");
+  let h = `<div class="row"><button id="b-example">Load example</button><button id="b-import">Import mesh.json</button>
+    <button id="b-export">Export mesh.json</button><button id="b-setup" class="primary">Show setup commands</button><button id="b-clear">Clear</button></div>
+  <fieldset><legend>1 · Machines (every computer that books or hosts)</legend>
+    <div class="row"><input id="m-name" placeholder="name, e.g. macbook" size="14"><select id="m-os">${["linux","linux-wsl2","macos","windows"].map(o => opt(o, o)).join("")}</select>
+    <input id="m-ip" placeholder="private IP (optional)" size="16"><label class="clock"><input type="checkbox" id="m-coord"> coordinator</label><button id="m-add">add</button></div>
+    <ul>${MESH.machines.map((m, i) => `<li><span><b>${esc(m.name)}</b> · ${esc(m.os || "")}${m.ip ? " · " + esc(m.ip) : ""}${m.role ? " · " + esc(m.role) : ""}</span><button data-del="machines:${i}">✕</button></li>`).join("")}</ul></fieldset>
+  <fieldset><legend>2 · GPUs / accelerators (one row each; two GPUs in one box = two rows)</legend>
+    <div class="row"><input id="r-id" placeholder="id, e.g. oldrig-3090-0" size="16"><select id="r-machine">${machineOpts || opt("", "add a machine first")}</select>
+    <select id="r-preset">${presetOpts}</select></div>
+    <div class="row"><input id="r-mem" placeholder="memory GB" size="9"><input id="r-budget" placeholder="budget GB (auto)" size="12">
+    <input id="r-notes" placeholder="notes (optional)" size="18"><button id="r-add">add</button></div>
+    <div class="clock" id="r-hint" style="font-size:12px"></div>
+    <ul>${R.res.map(r => `<li><span><b>${esc(r.id)}</b> on ${esc(r.machine)} · ${esc(r.model)} · budget ${r.budget_gb} GB</span><button data-del="resources:${MESH.resources.findIndex(x => x.id === r.id)}">✕</button></li>`).join("")}</ul></fieldset>
+  <fieldset><legend>3 · Groups booked as one unit (duo, quad, Mac pair, NVLink pair)</legend>
+    <div class="row"><input id="g-id" placeholder="id, e.g. mac-pair" size="14"><select id="g-link">${linkOpts}</select></div>
+    <div class="row members">${R.res.map(r => `<label><input type="checkbox" value="${esc(r.id)}" class="g-mem"> ${esc(r.id)}</label>`).join("") || "<span class=clock>add GPUs first</span>"}</div>
+    <div class="row"><button id="g-add">add group</button></div>
+    <ul>${MESH.groups.map((g, i) => `<li><span><b>${esc(g.id)}</b> = ${g.members.map(esc).join(" + ")} · ${esc(g.link)}</span><button data-del="groups:${i}">✕</button></li>`).join("")}</ul></fieldset>
+  ${R.errs.length ? `<div class="errs">${R.errs.map(e => "• " + esc(e)).join("<br>")}</div>`
+                  : `<div class="ok">✓ valid: ${R.machines.length} machines, ${R.res.length} GPUs, ${R.groups.length} groups</div>`}
+  <div id="b-out"></div>`;
+  $("builder").innerHTML = h;
+  const hint = () => { const p = PR[$("r-preset").value];
+    $("r-hint").textContent = p.memory_gb != null ? `${p.memory_gb} GB, default budget ${p.budget_gb} GB · telemetry: ${p.telemetry}`
+                                               : `enter memory GB; default budget ${Math.round((p.budget_fraction ?? .9) * 100)}% of it · telemetry: ${p.telemetry}`; };
+  $("r-preset").onchange = hint; hint();
+  const num = v => v.trim() === "" ? undefined : +v;
+  $("m-add").onclick = () => { const name = $("m-name").value.trim(); if (!name) return;
+    MESH.machines.push(Object.assign({ name, os: $("m-os").value }, $("m-ip").value.trim() ? { ip: $("m-ip").value.trim() } : {},
+      $("m-coord").checked ? { role: "runs the coordinator" } : {})); saveMesh(); refreshBuild(); };
+  $("r-add").onclick = () => { const id = $("r-id").value.trim(); if (!id) return;
+    const r = { id, machine: $("r-machine").value, preset: $("r-preset").value };
+    const mem = num($("r-mem").value), bud = num($("r-budget").value), notes = $("r-notes").value.trim();
+    if (mem !== undefined) r.memory_gb = mem; if (bud !== undefined) r.budget_gb = bud; if (notes) r.notes = notes;
+    MESH.resources.push(r); saveMesh(); refreshBuild(); };
+  $("g-add").onclick = () => { const id = $("g-id").value.trim(); const members = [...document.querySelectorAll(".g-mem:checked")].map(x => x.value);
+    if (!id) return; MESH.groups.push({ id, members, link: $("g-link").value, driver: members[0] }); saveMesh(); refreshBuild(); };
+  $("builder").querySelectorAll("[data-del]").forEach(b => b.onclick = () => { const [k, i] = b.dataset.del.split(":");
+    MESH[k].splice(+i, 1); saveMesh(); refreshBuild(); });
+  $("b-example").onclick = () => { MESH = JSON.parse(JSON.stringify(EXAMPLE_MESH)); saveMesh(); refreshBuild(); };
+  $("b-clear").onclick = () => { if (confirm("Clear your mesh from this browser?")) { MESH = { mesh: "my-homelab", machines: [], resources: [], groups: [] }; saveMesh(); refreshBuild(); } };
+  $("b-export").onclick = () => download("mesh.json", JSON.stringify(MESH, null, 2) + "\n");
+  $("b-setup").onclick = () => { $("b-out").innerHTML = R.errs.length ? `<div class="errs">fix the problems above first</div>`
+      : `<textarea readonly id="b-text"></textarea><div class="row"><button id="b-copy">copy</button><button id="b-dl">download mesh.sql</button></div>`;
+    if (!R.errs.length) { $("b-text").value = setupText(R);
+      $("b-copy").onclick = () => navigator.clipboard?.writeText($("b-text").value);
+      $("b-dl").onclick = () => download("mesh.sql", $("b-text").value.split("\n").filter(l => !l.startsWith("python ")).join("\n") + "\n"); } };
+  $("b-import").onclick = () => { $("b-out").innerHTML = `<textarea id="b-in" placeholder="paste a mesh.json here (for example one an LLM wrote for you from docs/describe-your-mesh.md)"></textarea>
+      <div class="row"><button id="b-load" class="primary">load</button></div>`;
+    $("b-load").onclick = () => { try { const m = JSON.parse($("b-in").value);
+        MESH = { mesh: m.mesh || "my-homelab", machines: m.machines || [], resources: m.resources || [], groups: m.groups || [] }; saveMesh(); refreshBuild(); }
+      catch (e) { $("b-out").insertAdjacentHTML("beforeend", `<div class="errs">not valid JSON: ${esc(e.message)}</div>`); } }; };
+  return data;
+}
+function refreshBuild() { DATA = drawBuilder(); render(); }
+
+// ------------------------------------------------------------------ wiring
+function render() { if (!DATA) return; drawTopo(DATA); drawTimeline(DATA); drawTable(DATA); }
+function setScenario(sc) {
+  SCEN = sc; $("caption").innerHTML = sc.caption;
+  $("scen").querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.k === sc.key));
+  DATA = demoData(); render();
+}
+async function refreshLive() {
+  try { DATA = await liveData(); $("status").textContent = "live · " + new Date().toLocaleTimeString(); render(); }
+  catch (e) { $("status").innerHTML = `<span class="err">live: ${esc(e.message)} — serve this page from the coordinator's /dash, or allow CORS</span>`; }
+}
+function setMode(m) {
+  MODE = m; $("modepill").querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.m === m));
+  $("liveopts").style.display = m === "live" ? "" : "none"; $("scen").style.display = m === "demo" ? "" : "none";
+  $("builder").style.display = m === "build" ? "" : "none";
+  $("lefth").textContent = m === "demo" ? "Scenarios" : m === "build" ? "Your mesh" : "Live";
+  clearInterval(LIVE_TIMER);
+  if (m === "demo") { $("status").textContent = "demo data"; setScenario(SCEN); }
+  else if (m === "build") { $("status").textContent = "your mesh · saved in this browser only";
+    $("caption").innerHTML = "Describe <b>your</b> machines: add each computer, then each GPU on it (pick a preset such as RTX 3090 or Apple Silicon), then any <b>groups</b> booked together (a Mac pair over Thunderbolt, two NVLinked GPUs, a GB10 duo). Export <span class=mono>mesh.json</span> or copy the setup commands. Prefer an LLM? Give it <span class=mono>docs/describe-your-mesh.md</span> and paste its JSON into Import.";
+    refreshBuild(); }
+  else { $("caption").innerHTML = "Live view of your coordinator, refreshed every 15 s. Read-only: this page never books or cancels."; refreshLive(); LIVE_TIMER = setInterval(refreshLive, 15000); }
+}
+for (const sc of SCENARIOS) { const b = document.createElement("button"); b.textContent = sc.label; b.dataset.k = sc.key; b.onclick = () => setScenario(sc); $("scen").appendChild(b); }
+$("modepill").querySelectorAll("button").forEach(b => b.onclick = () => setMode(b.dataset.m));
+$("connect").onclick = refreshLive;
+$("win").onchange = () => MODE === "live" ? refreshLive() : render();
+addEventListener("resize", render);
+setInterval(() => $("clock").textContent = new Date().toLocaleTimeString(), 1000);
+{ const q = new URLSearchParams(location.search); setMode(q.get("live") != null || location.pathname.endsWith("/dash") ? "live" : q.get("build") != null ? "build" : "demo"); }
+</script>
+</body>
+</html>

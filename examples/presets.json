@@ -1,0 +1,105 @@
+{
+  "_comment": "Hardware presets for describing a mesh. memory_gb = what the device has; budget_gb = what GPUB lets bookings use (leave headroom for the OS/driver). Unified-memory machines (GB10, Apple Silicon) share RAM with the OS, so their budget is a fraction of total. Edit freely; budgets are policy, not measurements.",
+  "presets": [
+    {
+      "id": "rtx-3060-12",
+      "label": "NVIDIA RTX 3060 (12 GB)",
+      "memory": "vram",
+      "memory_gb": 12,
+      "budget_gb": 11,
+      "telemetry": "nvidia-smi"
+    },
+    {
+      "id": "rtx-3090",
+      "label": "NVIDIA RTX 3090 (24 GB)",
+      "memory": "vram",
+      "memory_gb": 24,
+      "budget_gb": 22,
+      "telemetry": "nvidia-smi"
+    },
+    {
+      "id": "rtx-4090",
+      "label": "NVIDIA RTX 4090 (24 GB)",
+      "memory": "vram",
+      "memory_gb": 24,
+      "budget_gb": 22,
+      "telemetry": "nvidia-smi"
+    },
+    {
+      "id": "rtx-5090",
+      "label": "NVIDIA RTX 5090 (32 GB)",
+      "memory": "vram",
+      "memory_gb": 32,
+      "budget_gb": 30,
+      "telemetry": "nvidia-smi"
+    },
+    {
+      "id": "rtx-a6000",
+      "label": "NVIDIA RTX A6000 / 6000 Ada (48 GB)",
+      "memory": "vram",
+      "memory_gb": 48,
+      "budget_gb": 45,
+      "telemetry": "nvidia-smi"
+    },
+    {
+      "id": "rtx-pro-6000",
+      "label": "NVIDIA RTX PRO 6000 Blackwell (96 GB)",
+      "memory": "vram",
+      "memory_gb": 96,
+      "budget_gb": 90,
+      "telemetry": "nvidia-smi"
+    },
+    {
+      "id": "gb10",
+      "label": "NVIDIA GB10 / DGX Spark-class (128 GB unified)",
+      "memory": "unified",
+      "memory_gb": 128,
+      "budget_gb": 110,
+      "telemetry": "nvidia-smi (memory reads N/A on unified memory)"
+    },
+    {
+      "id": "apple-silicon",
+      "label": "Apple Silicon Mac (unified; enter your RAM)",
+      "memory": "unified",
+      "memory_gb": null,
+      "budget_fraction": 0.75,
+      "telemetry": "none built in (agent still runs jobs and heartbeats)",
+      "name": "Apple Silicon Mac"
+    },
+    {
+      "id": "custom",
+      "label": "Other GPU / accelerator (enter numbers)",
+      "memory": "vram",
+      "memory_gb": null,
+      "budget_fraction": 0.9,
+      "telemetry": "depends; the agent only reads nvidia-smi",
+      "name": "GPU / accelerator"
+    }
+  ],
+  "links": [
+    {
+      "id": "qsfp",
+      "label": "QSFP / ConnectX (e.g. GB10 to GB10, 200G)"
+    },
+    {
+      "id": "thunderbolt",
+      "label": "Thunderbolt (e.g. Mac to Mac)"
+    },
+    {
+      "id": "nvlink",
+      "label": "NVLink bridge (two GPUs in one box)"
+    },
+    {
+      "id": "ethernet",
+      "label": "Ethernet (10/25/100G)"
+    },
+    {
+      "id": "infiniband",
+      "label": "InfiniBand"
+    },
+    {
+      "id": "none",
+      "label": "No special link (booked together only)"
+    }
+  ]
+}

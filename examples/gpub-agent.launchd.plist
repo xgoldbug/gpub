@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Example launchd agent for running the GPUB host agent on macOS (NOT exercised by the test suite).
+     Replace /usr/local/bin/python3 (needs Python 3.11+; the macOS system python3 is too old), __HOME__ (your home
+     directory, absolute: launchd does not expand ~) and mac-a-gpu,
+     then:  cp gpub-agent.launchd.plist ~/Library/LaunchAgents/org.gpub.agent.plist
+            launchctl load ~/Library/LaunchAgents/org.gpub.agent.plist
+     A LaunchAgent runs only while the user is logged in. The agent reads ~/.config/gpub/config.json. -->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>org.gpub.agent</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/python3</string>
+    <string>__HOME__/.local/lib/gpub/agent.py</string>
+    <string>--resource</string><string>mac-a-gpu</string>
+    <string>--poll</string><string>30</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>AbandonProcessGroup</key><true/>
+  <key>StandardOutPath</key><string>__HOME__/.local/state/gpub/agent.log</string>
+  <key>StandardErrorPath</key><string>__HOME__/.local/state/gpub/agent.log</string>
+</dict>
+</plist>

@@ -1,0 +1,27 @@
+{
+  "mesh": "example-homelab",
+  "machines": [
+    {"name": "headnode", "os": "linux",      "ip": "192.0.2.10", "role": "runs the coordinator"},
+    {"name": "rtxbox",   "os": "linux-wsl2", "ip": "192.0.2.11"},
+    {"name": "oldrig",   "os": "linux",      "ip": "192.0.2.12"},
+    {"name": "spark-a",  "os": "linux",      "ip": "192.0.2.21"},
+    {"name": "spark-b",  "os": "linux",      "ip": "192.0.2.22"},
+    {"name": "studio",   "os": "macos",      "ip": "192.0.2.31"},
+    {"name": "macbook",  "os": "macos",      "ip": "192.0.2.32"}
+  ],
+  "resources": [
+    {"id": "rtxbox-5090",   "machine": "rtxbox",  "preset": "rtx-5090"},
+    {"id": "oldrig-3090-0", "machine": "oldrig",  "preset": "rtx-3090"},
+    {"id": "oldrig-3090-1", "machine": "oldrig",  "preset": "rtx-3090"},
+    {"id": "spark-a-gb10",  "machine": "spark-a", "preset": "gb10"},
+    {"id": "spark-b-gb10",  "machine": "spark-b", "preset": "gb10"},
+    {"id": "studio-gpu",    "machine": "studio",  "preset": "apple-silicon", "memory_gb": 192},
+    {"id": "macbook-gpu",   "machine": "macbook", "preset": "apple-silicon", "memory_gb": 64, "budget_gb": 44,
+     "notes": "laptop: only when docked and on mains"}
+  ],
+  "groups": [
+    {"id": "gb10-duo",      "members": ["spark-a-gb10", "spark-b-gb10"],   "link": "qsfp",        "driver": "spark-a-gb10"},
+    {"id": "mac-pair",      "members": ["studio-gpu", "macbook-gpu"],      "link": "thunderbolt", "driver": "studio-gpu"},
+    {"id": "oldrig-nvlink", "members": ["oldrig-3090-0", "oldrig-3090-1"], "link": "nvlink"}
+  ]
+}

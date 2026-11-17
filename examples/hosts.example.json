@@ -1,0 +1,9 @@
+{
+  "_comment": "Optional input for `coordinator.py initdb --hosts`. Fills machines.tailnet_name / tailnet_ip (the IP each machine's requests must come from) for the machines named in seed(). `register --ip` sets the same field. Addresses below are RFC 5737 documentation addresses: use your own private LAN/VPN addresses.",
+  "hosts": [
+    {"key": "headnode",    "tailnet_name": "headnode",    "tailnet_ip": "192.0.2.10", "runtime": "linux"},
+    {"key": "workstation", "tailnet_name": "workstation", "tailnet_ip": "192.0.2.11", "runtime": "linux-wsl2"},
+    {"key": "rtxbox",      "tailnet_name": "rtxbox",      "tailnet_ip": "192.0.2.12", "runtime": "linux-wsl2"},
+    {"key": "spark-a",     "tailnet_name": "spark-a",     "tailnet_ip": "192.0.2.21", "runtime": "linux-arm64"}
+  ]
+}

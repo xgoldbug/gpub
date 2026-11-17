@@ -1,0 +1,22 @@
+# GPUB coordinator — system unit. Install: copy to /etc/systemd/system/, then `systemctl daemon-reload &&
+# systemctl enable --now gpub-coordinator`. Assumes the repo at /opt/gpub, a venv at /opt/gpub/venv
+# (pip install -r requirements.txt), a system user `gpub` with a Postgres role that owns the `gpub` database,
+# and that `coordinator.py initdb` has been run once as that user.
+# Set --bind to the coordinator host's PRIVATE LAN/VPN address. Never bind a public interface.
+[Unit]
+Description=GPUB GPU booking coordinator (soft enforcement; never kills anything)
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=gpub
+Group=gpub
+Environment=GPUB_DB=gpub
+ExecStart=/opt/gpub/venv/bin/python /opt/gpub/gpub/coordinator.py serve --bind 127.0.0.1 --port 8766 --tick 10
+Restart=on-failure
+RestartSec=10
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
